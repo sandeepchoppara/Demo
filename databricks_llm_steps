@@ -1,0 +1,152 @@
+Implementing LLM-Hackathon in Azure Databricks Using Databricks Models
+Since you want to use models available in Databricks rather than external models like Ollama, we need to use Databricks Foundation Models and integrate them with Garak & Giskard for security testing.
+
+✅ Step 1: Check Available Models in Databricks
+To list all pre-installed models in Databricks, open a Databricks Notebook and run:
+
+python
+Copy
+Edit
+from databricks.runtime import RuntimeML
+
+RuntimeML.list_models()
+Alternatively, use:
+
+python
+Copy
+Edit
+!databricks models list
+This will display all available models within Databricks Model Serving.
+
+🔹 Example Output:
+pgsql
+Copy
+Edit
+NAME               VERSION
+databricks-dolly-2-3b      2
+databricks-dolly-2-7b      2
+mpt-7b-instruct           1
+This means we can use Databricks Dolly or MPT-7B for testing.
+
+✅ Step 2: Load & Use a Databricks Model
+Once you find an available model, load it into a notebook:
+
+python
+Copy
+Edit
+from transformers import pipeline
+
+# Load a Databricks Foundation Model (e.g., Dolly 2.7B)
+model_pipeline = pipeline("text-generation", model="databricks/dolly-v2-7b")
+
+# Test with a sample prompt
+prompt = "Explain the risks of AI security."
+response = model_pipeline(prompt, max_length=100)
+
+print(response[0]['generated_text'])
+✅ This confirms that the model is working inside Databricks.
+
+✅ Step 3: Run Security Testing with Garak
+Now, we integrate Garak to test LLM vulnerabilities in the Databricks model.
+
+1️⃣ Install Garak in Databricks
+
+python
+Copy
+Edit
+%pip install garak
+2️⃣ Run a Security Scan
+
+python
+Copy
+Edit
+import garak
+
+# Run a Garak security scan on the Databricks model
+garak.run(["--model", "databricks/dolly-v2-7b"])
+To test for specific vulnerabilities (e.g., prompt injection):
+
+python
+Copy
+Edit
+garak.run(["--model", "databricks/dolly-v2-7b", "--probe", "prompt_injection"])
+✅ Step 4: Run AI Bias & Fairness Analysis with Giskard
+1️⃣ Install Giskard
+
+python
+Copy
+Edit
+%pip install giskard
+2️⃣ Load the Hackaprompt Adversarial Dataset
+
+python
+Copy
+Edit
+import pandas as pd
+from giskard import Model, Dataset, scan
+
+# Load adversarial dataset from Hugging Face
+hf_dataset = pd.read_parquet("hf://datasets/hackaprompt/hackaprompt-dataset/hackaprompt.parquet")
+
+# Select a subset for testing
+hf_dataset = hf_dataset.iloc[:50]  # Reduce size for efficiency
+
+# Convert to Giskard dataset format
+giskard_dataset = Dataset(hf_dataset, target=None)
+3️⃣ Wrap the Databricks Model in Giskard
+
+python
+Copy
+Edit
+def model_predict(df: pd.DataFrame):
+    return [model_pipeline(prompt)[0]["generated_text"] for prompt in df["prompt"].values]
+
+# Register model in Giskard
+giskard_model = Model(
+    model=model_predict,
+    model_type="text-generation",
+    name="Databricks Dolly 2.7B",
+    description="Testing security vulnerabilities in Databricks Dolly."
+)
+4️⃣ Run the Giskard Scan
+
+python
+Copy
+Edit
+scan_results = scan(giskard_model, giskard_dataset, only=["llm"])
+scan_results.to_html("giskard_scan_results.html")
+print("Scan results saved as giskard_scan_results.html")
+✅ Step 5: Save & Download Results in Databricks
+1️⃣ Save Scan Reports to Databricks FileStore
+
+python
+Copy
+Edit
+dbutils.fs.mv("file:/databricks/driver/giskard_scan_results.html", "dbfs:/FileStore/giskard_scan_results.html")
+2️⃣ Download Results
+
+Open Databricks FileStore:
+🔗 https://<your-databricks-instance>#mlflow/artifacts/dbfs/FileStore/giskard_scan_results.html
+Right-click → Download File
+✅ Step 6: Automate in Databricks Jobs
+1️⃣ Go to "Jobs" → Click "Create Job"
+2️⃣ Add a Notebook Task:
+
+Select Notebook → Choose the script you created.
+Set a Schedule (e.g., every 24 hours).
+Click Create & Run.
+🚀 Summary
+Step	Task	Command/Notebook Code
+1	List Databricks Models	RuntimeML.list_models()
+2	Load a Databricks Model (Dolly, MPT-7B, etc.)	pipeline("text-generation", model="databricks/dolly-v2-7b")
+3	Run Security Testing with Garak	garak.run(["--model", "databricks/dolly-v2-7b"])
+4	Run Bias & Fairness Testing with Giskard	scan_results = scan(giskard_model, giskard_dataset, only=["llm"])
+5	Save & Download Results	dbutils.fs.mv("file:/...html", "dbfs:/FileStore/...html")
+6	Automate in Databricks Jobs	Jobs → Create New Job → Select Notebook
+🚀 Next Steps
+✅ Check available models using RuntimeML.list_models().
+✅ Run security testing on a Databricks model using Garak.
+✅ Perform AI fairness analysis using Giskard.
+✅ Automate scanning using Databricks Jobs.
+
+Would you like a Databricks Notebook (.dbc) file with this setup preloaded? 
